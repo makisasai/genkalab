@@ -11,6 +11,7 @@
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Noto Sans JP', sans-serif; background: #faf7f2; }
+input, select, button { font-family: 'Noto Sans JP', sans-serif; }
 </style>
 </head>
 <body>
@@ -18,162 +19,507 @@ body { font-family: 'Noto Sans JP', sans-serif; background: #faf7f2; }
 <script type="text/babel">
 
 const C = {
-  bg: "#faf7f2", surface: "#ffffff", border: "#ede8e0",
-  brown1: "#5c4a32", brown2: "#8a7560", brown3: "#b8a892",
-  accent: "#c8873a", accentBg: "#fdf3e8",
-  green: "#5a8a5a", greenBg: "#eef5ee",
-  red: "#b85a5a", redBg: "#faeeed",
-  yellow: "#c89a2a", yellowBg: "#fdf7e0",
-  blue: "#4a7a9a", blueBg: "#edf4f8",
+  bg:"#faf7f2", surface:"#ffffff", border:"#ede8e0",
+  brown1:"#5c4a32", brown2:"#8a7560", brown3:"#b8a892",
+  accent:"#c8873a", accentBg:"#fdf3e8",
+  green:"#5a8a5a", greenBg:"#eef5ee",
+  red:"#b85a5a", redBg:"#faeeed",
+  yellow:"#c89a2a", yellowBg:"#fdf7e0",
+  blue:"#4a7a9a", blueBg:"#edf4f8",
 };
 
-const PRODUCTS = [
-  { name: "アイスクリーム 120ml", matCost: 185, laborCost: 48, price: 680, margin: 65.7, units: 800 },
-  { name: "牛乳プリン 150g", matCost: 92, laborCost: 31, price: 420, margin: 70.7, units: 2200 },
-  { name: "生クリームロール", matCost: 310, laborCost: 72, price: 980, margin: 61.0, units: 340 },
-  { name: "バター 200g", matCost: 420, laborCost: 55, price: 1200, margin: 60.4, units: 1800 },
-];
-
-const fmt = (n) => Math.round(n).toLocaleString("ja-JP");
-const pct = (n) => Number(n).toFixed(1) + "%";
+const fmt = (n,d=0) => (isNaN(n)||!isFinite(n)) ? "—" : Number(n).toLocaleString("ja-JP",{minimumFractionDigits:d,maximumFractionDigits:d});
+const pct = (n,d=1) => (isNaN(n)||!isFinite(n)) ? "—" : Number(n).toFixed(d)+"%";
 
 const NAV = [
-  { id: "dashboard", label: "ダッシュボード", icon: "🏠" },
-  { id: "calc", label: "原価計算", icon: "📊" },
-  { id: "compare", label: "商品比較", icon: "⚖️" },
-  { id: "reverse", label: "逆算シミュ", icon: "🔄" },
-  { id: "plan", label: "生産計画", icon: "📅" },
-  { id: "inventory", label: "棚卸し", icon: "📦" },
-  { id: "trend", label: "推移レポート", icon: "📈" },
+  {id:"dashboard", label:"ダッシュボード", icon:"🏠"},
+  {id:"calc",      label:"原価計算",       icon:"📊"},
+  {id:"compare",   label:"商品比較",       icon:"⚖️"},
+  {id:"reverse",   label:"逆算シミュ",     icon:"🔄"},
+  {id:"plan",      label:"生産計画",       icon:"📅"},
+  {id:"inventory", label:"棚卸し",         icon:"📦"},
+  {id:"trend",     label:"推移レポート",   icon:"📈"},
 ];
 
-function App() {
-  const [screen, setScreen] = React.useState("dashboard");
+// ── UI PARTS ─────────────────────────────────────────────
+const Card = ({children,style={}}) => (
+  <div style={{background:C.surface,borderRadius:14,border:`1px solid ${C.border}`,padding:"16px",marginBottom:14,...style}}>{children}</div>
+);
 
-  const totalRevenue = PRODUCTS.reduce((s,p) => s + p.price * p.units, 0);
-  const totalProfit = PRODUCTS.reduce((s,p) => s + (p.price - p.matCost - p.laborCost) * p.units, 0);
-  const opProfit = totalProfit - 1300000;
-  const sorted = [...PRODUCTS].sort((a,b) => (b.price-b.matCost-b.laborCost)*b.units - (a.price-a.matCost-a.laborCost)*a.units);
+const FieldInput = ({label,value,onChange,unit,hint}) => (
+  <div style={{marginBottom:14}}>
+    <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+      <label style={{fontSize:13,fontWeight:600,color:C.brown1}}>{label}</label>
+      {hint&&<span style={{fontSize:11,color:C.brown3}}>{hint}</span>}
+    </div>
+    <div style={{display:"flex",alignItems:"center",gap:8}}>
+      <input type="number" value={value} onChange={e=>onChange(e.target.value)}
+        style={{flex:1,padding:"10px 12px",border:`1.5px solid ${C.border}`,borderRadius:10,fontSize:14,color:C.brown1,background:"#fdf9f5",outline:"none"}}/>
+      {unit&&<span style={{fontSize:12,color:C.brown3}}>{unit}</span>}
+    </div>
+  </div>
+);
+
+const Badge = ({val,type="neutral"}) => {
+  const map={good:[C.green,C.greenBg],warn:[C.yellow,C.yellowBg],bad:[C.red,C.redBg],neutral:[C.brown2,"#f0ece4"]};
+  const [color,bg]=map[type]||map.neutral;
+  return <span style={{fontSize:11,padding:"2px 10px",borderRadius:99,background:bg,color,fontWeight:700}}>{val}</span>;
+};
+
+// ── DASHBOARD ────────────────────────────────────────────
+const PRODUCTS_DATA = [
+  {name:"アイスクリーム 120ml",matCost:185,laborCost:48,price:680,margin:65.7,units:800},
+  {name:"牛乳プリン 150g",     matCost:92, laborCost:31,price:420,margin:70.7,units:2200},
+  {name:"生クリームロール",     matCost:310,laborCost:72,price:980,margin:61.0,units:340},
+  {name:"バター 200g",         matCost:420,laborCost:55,price:1200,margin:60.4,units:1800},
+];
+
+function Dashboard() {
+  const totalRevenue = PRODUCTS_DATA.reduce((s,p)=>s+p.price*p.units,0);
+  const totalProfit  = PRODUCTS_DATA.reduce((s,p)=>s+(p.price-p.matCost-p.laborCost)*p.units,0);
+  const opProfit     = totalProfit - 1300000;
+  const sorted = [...PRODUCTS_DATA].sort((a,b)=>(b.price-b.matCost-b.laborCost)*b.units-(a.price-a.matCost-a.laborCost)*a.units);
+  return (
+    <div>
+      <div style={{marginBottom:20}}>
+        <div style={{fontSize:11,color:C.brown3,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:4}}>2025年5月</div>
+        <h1 style={{fontSize:22,fontWeight:900,color:C.brown1,marginBottom:2}}>ダッシュボード</h1>
+        <div style={{fontSize:12,color:C.brown2}}>月次サマリー — 目標 vs 実績</div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+        {[
+          {label:"月間売上高",val:`¥${fmt(totalRevenue)}`,sub:"前月比 +8.2% ▲",color:C.green,icon:"💰"},
+          {label:"月間粗利",  val:`¥${fmt(totalProfit)}`, sub:`粗利率 ${pct(totalProfit/totalRevenue*100)}`,color:C.green,icon:"📈"},
+          {label:"営業利益",  val:`¥${fmt(opProfit)}`,    sub:"販管費控除後",color:C.blue,icon:"✨"},
+          {label:"管理商品数",val:"4商品",                 sub:"今月2件更新",color:C.brown2,icon:"🍱"},
+        ].map((k,i)=>(
+          <Card key={i} style={{padding:"14px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+              <div style={{fontSize:11,color:C.brown2,fontWeight:600}}>{k.label}</div>
+              <span style={{fontSize:18}}>{k.icon}</span>
+            </div>
+            <div style={{fontSize:17,fontWeight:900,color:C.brown1,marginBottom:3}}>{k.val}</div>
+            <div style={{fontSize:11,fontWeight:600,color:k.color}}>{k.sub}</div>
+          </Card>
+        ))}
+      </div>
+      <Card>
+        <div style={{fontSize:13,fontWeight:700,color:C.brown1,marginBottom:14}}>商品別 粗利率</div>
+        {sorted.map((p,i)=>{
+          const type=p.margin>=65?"good":p.margin>=55?"warn":"bad";
+          const mColor=type==="good"?C.green:type==="warn"?C.yellow:C.red;
+          const mBg=type==="good"?C.greenBg:type==="warn"?C.yellowBg:C.redBg;
+          return (
+            <div key={i} style={{marginBottom:14}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,color:C.brown1}}>{p.name}</div>
+                  <div style={{fontSize:11,color:C.brown3}}>原価 {p.matCost+p.laborCost}円 / 売価 {p.price}円</div>
+                </div>
+                <span style={{padding:"4px 10px",borderRadius:99,background:mBg,color:mColor,fontWeight:700,fontSize:13}}>{pct(p.margin)}</span>
+              </div>
+              <div style={{height:6,background:"#f0ece4",borderRadius:99}}>
+                <div style={{height:"100%",width:`${p.margin}%`,background:mColor,borderRadius:99}}/>
+              </div>
+            </div>
+          );
+        })}
+      </Card>
+      <Card>
+        <div style={{fontSize:13,fontWeight:700,color:C.brown1,marginBottom:12}}>お知らせ</div>
+        {[
+          {type:"warn",icon:"⚠️",text:"生クリームロール 歩留まり −4%"},
+          {type:"warn",icon:"⚠️",text:"バター 200g 原材料費 +12円"},
+          {type:"good",icon:"✅",text:"牛乳プリン 目標粗利率達成！"},
+        ].map((a,i)=>(
+          <div key={i} style={{display:"flex",gap:10,padding:"10px 12px",borderRadius:8,marginBottom:8,background:a.type==="warn"?C.yellowBg:C.greenBg}}>
+            <span>{a.icon}</span>
+            <span style={{fontSize:12,color:C.brown1}}>{a.text}</span>
+          </div>
+        ))}
+      </Card>
+    </div>
+  );
+}
+
+// ── 原価計算 ─────────────────────────────────────────────
+function CostCalc() {
+  const [price,    setPrice]    = React.useState(680);
+  const [yield_,   setYield]    = React.useState(94);
+  const [mat,      setMat]      = React.useState([
+    {id:1,name:"生クリーム",cost:120},
+    {id:2,name:"牛乳",cost:45},
+    {id:3,name:"砂糖",cost:20},
+  ]);
+  const [laborCost,setLaborCost]= React.useState(2000000);
+  const [workMin,  setWorkMin]  = React.useState(12000);
+  const [cookMin,  setCookMin]  = React.useState(3);
+
+  const rawMat     = mat.reduce((s,m)=>s+(parseFloat(m.cost)||0),0);
+  const yieldRate  = Math.max(parseFloat(yield_)||1,1)/100;
+  const matCost    = rawMat/yieldRate;
+  const cpm        = workMin>0?laborCost/workMin:0;
+  const laborPerUnit = cpm*(parseFloat(cookMin)||0);
+  const totalCost  = matCost+laborPerUnit;
+  const sp         = parseFloat(price)||0;
+  const grossProfit= sp-totalCost;
+  const margin     = sp>0?(grossProfit/sp)*100:0;
+  const marginType = margin>=60?"good":margin>=40?"warn":"bad";
 
   return (
-    <div style={{ display:"flex", minHeight:"100vh", fontFamily:"'Noto Sans JP',sans-serif" }}>
-      {/* サイドバー */}
-      <div style={{ width:200, background:"#fff", borderRight:`1px solid ${C.border}`, padding:"24px 0", display:"flex", flexDirection:"column", flexShrink:0 }}>
-        <div style={{ padding:"0 20px 20px", borderBottom:`1px solid ${C.border}`, marginBottom:8 }}>
-          <div style={{ fontSize:10, letterSpacing:"0.2em", color:C.brown3, textTransform:"uppercase", marginBottom:4 }}>Food Manufacturing</div>
-          <div style={{ fontSize:20, fontWeight:900, color:C.accent, letterSpacing:"0.05em" }}>GenkaLab</div>
-          <div style={{ fontSize:11, color:C.brown3, marginTop:2 }}>食品製造 原価管理</div>
-        </div>
-        <div style={{ padding:"8px 12px", flex:1 }}>
-          {NAV.map(n => {
-            const active = screen === n.id;
-            return (
-              <div key={n.id} onClick={() => setScreen(n.id)}
-                style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", borderRadius:10, marginBottom:2, cursor:"pointer",
-                  background: active ? C.accentBg : "transparent",
-                  color: active ? C.accent : C.brown2,
-                  fontWeight: active ? 700 : 400, fontSize:13,
-                  borderLeft: active ? `3px solid ${C.accent}` : "3px solid transparent" }}>
-                <span>{n.icon}</span>{n.label}
-              </div>
-            );
-          })}
-        </div>
-        <div style={{ padding:"16px 20px", borderTop:`1px solid ${C.border}` }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <div style={{ width:32, height:32, borderRadius:"50%", background:C.accentBg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>🧑</div>
-            <div>
-              <div style={{ fontSize:12, fontWeight:700, color:C.brown1 }}>山田乳業</div>
-              <div style={{ fontSize:11, color:C.brown3 }}>スタンダード</div>
-            </div>
+    <div>
+      <h1 style={{fontSize:20,fontWeight:900,color:C.brown1,marginBottom:16}}>原価計算</h1>
+      <Card>
+        <div style={{fontSize:11,color:C.brown3,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>販売価格</div>
+        <FieldInput label="販売価格" value={price} onChange={setPrice} unit="円"/>
+      </Card>
+      <Card>
+        <div style={{fontSize:11,color:C.brown3,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>① 原材料費</div>
+        {mat.map(m=>(
+          <div key={m.id} style={{display:"flex",gap:8,marginBottom:8,alignItems:"center"}}>
+            <input type="text" value={m.name} onChange={e=>setMat(prev=>prev.map(x=>x.id===m.id?{...x,name:e.target.value}:x))} placeholder="原材料名"
+              style={{flex:2,padding:"8px 10px",border:`1.5px solid ${C.border}`,borderRadius:8,fontSize:13,background:"#fdf9f5",outline:"none"}}/>
+            <input type="number" value={m.cost} onChange={e=>setMat(prev=>prev.map(x=>x.id===m.id?{...x,cost:e.target.value}:x))}
+              style={{flex:1,padding:"8px 10px",border:`1.5px solid ${C.border}`,borderRadius:8,fontSize:13,textAlign:"right",background:"#fdf9f5",outline:"none"}}/>
+            <span style={{fontSize:11,color:C.brown3}}>円</span>
+            <button onClick={()=>setMat(prev=>prev.filter(x=>x.id!==m.id))}
+              style={{width:24,height:24,borderRadius:"50%",border:`1px solid ${C.border}`,background:"#fff",cursor:"pointer",color:C.brown3,fontSize:13,padding:0}}>×</button>
+          </div>
+        ))}
+        <button onClick={()=>setMat(prev=>[...prev,{id:Date.now(),name:"",cost:0}])}
+          style={{padding:"6px 14px",border:`1px dashed ${C.brown3}`,borderRadius:8,background:"transparent",cursor:"pointer",fontSize:12,color:C.brown2,fontWeight:600}}>+ 追加</button>
+        <div style={{marginTop:12,padding:"12px",background:C.accentBg,borderRadius:10,border:`1px solid ${C.accent}30`}}>
+          <FieldInput label="歩留まり率" value={yield_} onChange={setYield} unit="%" hint={`ロス: +${((1/yieldRate-1)*rawMat).toFixed(1)}円`}/>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}>
+            <span style={{color:C.brown2}}>補正後原材料費</span>
+            <span style={{fontWeight:700,color:C.accent}}>{fmt(matCost,1)}円</span>
           </div>
         </div>
-      </div>
-
-      {/* メイン */}
-      <div style={{ flex:1, overflowY:"auto", padding:"28px 32px", background:C.bg }}>
-        <div style={{ marginBottom:24 }}>
-          <div style={{ fontSize:11, color:C.brown3, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:4 }}>2025年5月</div>
-          <h1 style={{ fontSize:24, fontWeight:900, color:C.brown1, marginBottom:4 }}>ダッシュボード</h1>
-          <div style={{ fontSize:13, color:C.brown2 }}>月次サマリー — 目標 vs 実績</div>
+      </Card>
+      <Card>
+        <div style={{fontSize:11,color:C.brown3,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>② 人件費（工賃換算）</div>
+        <FieldInput label="月間人件費" value={laborCost} onChange={setLaborCost} unit="円"/>
+        <FieldInput label="月間稼働分" value={workMin} onChange={setWorkMin} unit="分" hint="8h×20日=9,600分"/>
+        <FieldInput label="1個の製造時間" value={cookMin} onChange={setCookMin} unit="分"/>
+        <div style={{padding:"10px 12px",background:C.bg,borderRadius:8,display:"flex",justifyContent:"space-between",fontSize:13}}>
+          <span style={{color:C.brown2}}>1分あたり工賃</span>
+          <span style={{fontWeight:700,color:C.brown1}}>{fmt(cpm,2)}円/分</span>
         </div>
-
-        {/* KPI */}
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:20 }}>
-          {[
-            { label:"月間売上高", val:`¥${fmt(totalRevenue)}`, sub:"前月比 +8.2% ▲", color:C.green, icon:"💰" },
-            { label:"月間粗利", val:`¥${fmt(totalProfit)}`, sub:`粗利率 ${pct(totalProfit/totalRevenue*100)}`, color:C.green, icon:"📈" },
-            { label:"営業利益", val:`¥${fmt(opProfit)}`, sub:`販管費 ¥1,300,000`, color:C.blue, icon:"✨" },
-            { label:"管理商品数", val:"4", sub:"今月2件更新", color:C.brown2, icon:"🍱" },
-          ].map((k,i) => (
-            <div key={i} style={{ background:C.surface, borderRadius:14, border:`1px solid ${C.border}`, padding:"18px 20px" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
-                <div style={{ fontSize:12, color:C.brown2, fontWeight:600 }}>{k.label}</div>
-                <span style={{ fontSize:20 }}>{k.icon}</span>
-              </div>
-              <div style={{ fontSize:22, fontWeight:900, color:C.brown1, marginBottom:4 }}>{k.val}</div>
-              <div style={{ fontSize:12, fontWeight:600, color:k.color }}>{k.sub}</div>
-            </div>
-          ))}
+      </Card>
+      <div style={{background:C.brown1,borderRadius:14,padding:"20px",color:"#fff",marginBottom:14}}>
+        <div style={{fontSize:10,letterSpacing:"0.15em",color:"#a09080",textTransform:"uppercase",marginBottom:16}}>計算結果</div>
+        {[
+          {label:"原材料費（補正後）",val:`${fmt(matCost,1)}円`,color:"#f0e0c0"},
+          {label:"人件費（工賃）",    val:`${fmt(laborPerUnit,1)}円`,color:"#c0d8f0"},
+        ].map((r,i)=>(
+          <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #3a3020"}}>
+            <span style={{fontSize:12,color:"#b0a080"}}>{r.label}</span>
+            <span style={{fontSize:14,fontWeight:700,color:r.color}}>{r.val}</span>
+          </div>
+        ))}
+        <div style={{display:"flex",justifyContent:"space-between",padding:"12px 0",borderBottom:"1px solid #4a4020"}}>
+          <span style={{fontSize:14,color:"#d8c8a0",fontWeight:700}}>製造原価合計</span>
+          <span style={{fontSize:22,fontWeight:900,color:"#f0d060"}}>{fmt(totalCost,1)}<span style={{fontSize:12,fontWeight:400,marginLeft:3}}>円</span></span>
         </div>
-
-        {/* 商品テーブル */}
-        <div style={{ background:C.surface, borderRadius:14, border:`1px solid ${C.border}`, padding:"20px 24px", marginBottom:20 }}>
-          <div style={{ fontSize:14, fontWeight:700, color:C.brown1, marginBottom:16 }}>商品別 原価・粗利 詳細</div>
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
-            <thead>
-              <tr>
-                {["商品名","原材料費","人件費","製造原価","販売価格","粗利率"].map((h,i)=>(
-                  <th key={i} style={{ textAlign:i===0?"left":"right", padding:"8px 10px", borderBottom:`2px solid ${C.border}`, color:C.brown3, fontWeight:600, fontSize:11 }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((p,i) => {
-                const cost = p.matCost + p.laborCost;
-                const type = p.margin>=65?"good":p.margin>=55?"warn":"bad";
-                const mColor = type==="good"?C.green:type==="warn"?C.yellow:C.red;
-                const mBg = type==="good"?C.greenBg:type==="warn"?C.yellowBg:C.redBg;
-                return (
-                  <tr key={i} style={{ borderBottom:`1px solid ${C.border}` }}>
-                    <td style={{ padding:"12px 10px", fontWeight:700, color:C.brown1 }}>{p.name}</td>
-                    <td style={{ padding:"12px 10px", textAlign:"right", color:C.accent }}>{p.matCost}円</td>
-                    <td style={{ padding:"12px 10px", textAlign:"right", color:C.blue }}>{p.laborCost}円</td>
-                    <td style={{ padding:"12px 10px", textAlign:"right", fontWeight:700 }}>{cost}円</td>
-                    <td style={{ padding:"12px 10px", textAlign:"right", color:C.brown2 }}>{p.price}円</td>
-                    <td style={{ padding:"12px 10px", textAlign:"right" }}>
-                      <span style={{ padding:"3px 10px", borderRadius:99, background:mBg, color:mColor, fontWeight:700, fontSize:12 }}>{pct(p.margin)}</span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div style={{display:"flex",justifyContent:"space-between",padding:"12px 0"}}>
+          <span style={{fontSize:14,color:"#d8c8a0",fontWeight:700}}>粗利</span>
+          <span style={{fontSize:22,fontWeight:900,color:grossProfit>=0?"#90d4a8":"#e87a7a"}}>{fmt(grossProfit,1)}<span style={{fontSize:12,fontWeight:400,marginLeft:3}}>円</span></span>
         </div>
-
-        {/* アラート */}
-        <div style={{ background:C.surface, borderRadius:14, border:`1px solid ${C.border}`, padding:"20px 24px" }}>
-          <div style={{ fontSize:14, fontWeight:700, color:C.brown1, marginBottom:14 }}>お知らせ・アラート</div>
-          {[
-            { type:"warn", icon:"⚠️", text:"生クリームロール の歩留まりが88%に低下しています。先月比 −4%。" },
-            { type:"warn", icon:"⚠️", text:"バター 200g の原材料費が先月から+12円上昇しています。" },
-            { type:"good", icon:"✅", text:"牛乳プリン の粗利率が目標70%を達成しました！" },
-          ].map((a,i) => (
-            <div key={i} style={{ display:"flex", gap:10, padding:"12px 14px", borderRadius:10, marginBottom:8,
-              background: a.type==="warn" ? C.yellowBg : C.greenBg,
-              border: `1px solid ${a.type==="warn" ? C.yellow+"40" : C.green+"40"}` }}>
-              <span style={{ fontSize:16 }}>{a.icon}</span>
-              <span style={{ fontSize:13, color:C.brown1, lineHeight:1.6 }}>{a.text}</span>
-            </div>
-          ))}
+        <div style={{marginTop:12,padding:"14px",background:"#3a3020",borderRadius:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontSize:14,color:"#c8b89a",fontWeight:700}}>粗利率</span>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <Badge val={margin>=60?"優良":margin>=40?"標準":"要改善"} type={marginType}/>
+            <span style={{fontSize:26,fontWeight:900,color:margin>=60?"#90e4a8":margin>=40?"#f0d090":"#e87a7a"}}>{pct(margin)}</span>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
+// ── 商品比較 ─────────────────────────────────────────────
+function Compare() {
+  return (
+    <div>
+      <h1 style={{fontSize:20,fontWeight:900,color:C.brown1,marginBottom:16}}>商品比較</h1>
+      <Card>
+        <div style={{fontSize:13,fontWeight:700,color:C.brown1,marginBottom:14}}>商品別 粗利額ランキング</div>
+        {[...PRODUCTS_DATA].sort((a,b)=>(b.price-b.matCost-b.laborCost)*b.units-(a.price-a.matCost-a.laborCost)*a.units).map((p,i)=>{
+          const gp=(p.price-p.matCost-p.laborCost)*p.units;
+          const colors=[C.accent,C.blue,C.green,"#9a6ac0"];
+          return (
+            <div key={i} style={{marginBottom:16,padding:"14px",background:C.bg,borderRadius:12,border:`1px solid ${C.border}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                <div>
+                  <div style={{fontSize:14,fontWeight:700,color:C.brown1}}>
+                    <span style={{color:colors[i],fontWeight:900,marginRight:6}}>#{i+1}</span>{p.name}
+                  </div>
+                  <div style={{fontSize:11,color:C.brown3,marginTop:2}}>{fmt(p.units)}個 × ¥{p.price} / 粗利率 {pct(p.margin)}</div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:16,fontWeight:900,color:C.brown1}}>¥{fmt(gp)}</div>
+                  <div style={{fontSize:11,color:C.brown3}}>月間粗利額</div>
+                </div>
+              </div>
+              <div style={{height:6,background:"#f0ece4",borderRadius:99}}>
+                <div style={{height:"100%",width:`${(gp/((PRODUCTS_DATA[0].price-PRODUCTS_DATA[0].matCost-PRODUCTS_DATA[0].laborCost)*PRODUCTS_DATA[0].units))*100}%`,background:colors[i],borderRadius:99}}/>
+              </div>
+            </div>
+          );
+        })}
+      </Card>
+    </div>
+  );
+}
+
+// ── 逆算シミュ ────────────────────────────────────────────
+function Reverse() {
+  const [matCost,   setMatCost]   = React.useState(233);
+  const [targetMargin, setTargetMargin] = React.useState(60);
+  const priceForMargin = targetMargin<100 ? matCost/(1-targetMargin/100) : null;
+  return (
+    <div>
+      <h1 style={{fontSize:20,fontWeight:900,color:C.brown1,marginBottom:16}}>逆算シミュレーター</h1>
+      <Card>
+        <div style={{fontSize:11,color:C.brown3,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>製造原価（1個）</div>
+        <FieldInput label="製造原価合計" value={matCost} onChange={setMatCost} unit="円"/>
+      </Card>
+      <Card>
+        <div style={{fontSize:11,color:C.brown3,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>目標粗利率 → 必要な販売価格</div>
+        <FieldInput label="目標粗利率" value={targetMargin} onChange={setTargetMargin} unit="%"/>
+        {priceForMargin && (
+          <div style={{padding:"16px",background:C.accentBg,borderRadius:12,border:`1px solid ${C.accent}30`,marginTop:8}}>
+            <div style={{fontSize:12,color:C.brown2,marginBottom:8}}>粗利率 {targetMargin}% を達成するには</div>
+            <div style={{fontSize:28,fontWeight:900,color:C.accent,letterSpacing:"-0.02em"}}>
+              ¥{fmt(priceForMargin,0)}<span style={{fontSize:14,fontWeight:400,marginLeft:4}}>円以上</span>
+            </div>
+          </div>
+        )}
+      </Card>
+      <Card>
+        <div style={{fontSize:11,color:C.brown3,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>損益分岐点</div>
+        <div style={{padding:"14px",background:C.bg,borderRadius:10}}>
+          <div style={{fontSize:12,color:C.brown2,marginBottom:8}}>最低でもこの価格で売らないと赤字</div>
+          <div style={{fontSize:28,fontWeight:900,color:C.red}}>¥{fmt(matCost,0)}<span style={{fontSize:14,fontWeight:400,marginLeft:4}}>円</span></div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ── 生産計画 ─────────────────────────────────────────────
+function Plan() {
+  const [units, setUnits] = React.useState(500);
+  const [days,  setDays]  = React.useState(20);
+  const p = PRODUCTS_DATA[0];
+  const revenue = (parseFloat(units)||0)*p.price;
+  const cost    = (parseFloat(units)||0)*(p.matCost+p.laborCost);
+  const profit  = revenue-cost;
+  return (
+    <div>
+      <h1 style={{fontSize:20,fontWeight:900,color:C.brown1,marginBottom:16}}>生産計画</h1>
+      <Card>
+        <div style={{fontSize:11,color:C.brown3,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>計画入力</div>
+        <FieldInput label="月間製造数" value={units} onChange={setUnits} unit="個"/>
+        <FieldInput label="月間稼働日数" value={days} onChange={setDays} unit="日"/>
+        <div style={{padding:"10px 12px",background:C.bg,borderRadius:8,display:"flex",justifyContent:"space-between",fontSize:13}}>
+          <span style={{color:C.brown2}}>1日あたり</span>
+          <span style={{fontWeight:700,color:C.brown1}}>{fmt((parseFloat(units)||0)/(parseFloat(days)||1),1)}個</span>
+        </div>
+      </Card>
+      <div style={{background:C.brown1,borderRadius:14,padding:"20px",color:"#fff"}}>
+        <div style={{fontSize:10,letterSpacing:"0.15em",color:"#a09080",textTransform:"uppercase",marginBottom:16}}>月間損益 — {units}個</div>
+        {[
+          {label:"月間売上",val:`¥${fmt(revenue)}`,color:"#f0e8d0"},
+          {label:"製造原価",val:`-¥${fmt(cost)}`,color:"#e8b870"},
+        ].map((r,i)=>(
+          <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #3a3020"}}>
+            <span style={{fontSize:12,color:"#b0a080"}}>{r.label}</span>
+            <span style={{fontSize:14,fontWeight:700,color:r.color}}>{r.val}</span>
+          </div>
+        ))}
+        <div style={{display:"flex",justifyContent:"space-between",padding:"14px 0 0"}}>
+          <span style={{fontSize:14,color:"#d8c8a0",fontWeight:700}}>月間粗利</span>
+          <span style={{fontSize:24,fontWeight:900,color:profit>=0?"#90d4a8":"#e87a7a"}}>¥{fmt(profit)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 棚卸し ────────────────────────────────────────────────
+function Inventory() {
+  const items = [
+    {name:"生クリーム",prev:2000,purchase:15000,close:1800,unit:"ml",cost:0.24},
+    {name:"牛乳",      prev:5000,purchase:40000,close:4200,unit:"ml",cost:0.09},
+    {name:"卵",        prev:120, purchase:800,  close:95,  unit:"個",cost:28},
+  ];
+  const totalLoss = items.reduce((s,it)=>{
+    const actual=it.prev+it.purchase-it.close;
+    const theoretical=actual*0.92;
+    return s+Math.max((actual-theoretical)*it.cost,0);
+  },0);
+  return (
+    <div>
+      <h1 style={{fontSize:20,fontWeight:900,color:C.brown1,marginBottom:16}}>棚卸し・ロス管理</h1>
+      <div style={{background:C.brown1,borderRadius:14,padding:"16px",marginBottom:14,color:"#fff",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div>
+          <div style={{fontSize:10,color:"#8a7a5a",letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:4}}>月間ロス金額</div>
+          <div style={{fontSize:24,fontWeight:900,color:"#e87a7a"}}>¥{fmt(totalLoss,0)}</div>
+        </div>
+        <span style={{fontSize:30}}>📦</span>
+      </div>
+      {items.map((it,i)=>{
+        const actual=it.prev+it.purchase-it.close;
+        const theoretical=actual*0.92;
+        const loss=actual-theoretical;
+        const lossRate=(loss/actual)*100;
+        const lossAmt=loss*it.cost;
+        return (
+          <Card key={i}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <div style={{fontSize:14,fontWeight:700,color:C.brown1}}>{it.name}</div>
+              <span style={{fontSize:12,padding:"2px 8px",borderRadius:99,background:lossRate>5?C.redBg:C.greenBg,color:lossRate>5?C.red:C.green,fontWeight:700}}>
+                ロス率 {pct(lossRate)}
+              </span>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:10}}>
+              {[
+                {label:"実際使用量",val:`${fmt(actual,0)}${it.unit}`},
+                {label:"ロス量",    val:`${fmt(loss,1)}${it.unit}`},
+                {label:"ロス金額",  val:`¥${fmt(lossAmt,0)}`},
+              ].map((r,j)=>(
+                <div key={j} style={{padding:"8px",background:C.bg,borderRadius:8,textAlign:"center"}}>
+                  <div style={{fontSize:10,color:C.brown3,marginBottom:3}}>{r.label}</div>
+                  <div style={{fontSize:13,fontWeight:700,color:C.brown1}}>{r.val}</div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── 推移レポート ──────────────────────────────────────────
+const MONTHLY = [
+  {m:"1月",rev:4100000,profit:2530000},
+  {m:"2月",rev:3890000,profit:2390000},
+  {m:"3月",rev:4580000,profit:2820000},
+  {m:"4月",rev:4920000,profit:3030000},
+  {m:"5月",rev:5180000,profit:3190000},
+];
+
+function Trend() {
+  const maxRev = Math.max(...MONTHLY.map(m=>m.rev));
+  return (
+    <div>
+      <h1 style={{fontSize:20,fontWeight:900,color:C.brown1,marginBottom:16}}>推移レポート</h1>
+      <Card>
+        <div style={{fontSize:13,fontWeight:700,color:C.brown1,marginBottom:16}}>月次売上・粗利推移</div>
+        {MONTHLY.map((m,i)=>(
+          <div key={i} style={{marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:6,fontSize:12}}>
+              <span style={{fontWeight:700,color:C.brown1}}>{m.m}</span>
+              <div style={{display:"flex",gap:12}}>
+                <span style={{color:C.blue}}>売上 ¥{fmt(m.rev)}</span>
+                <span style={{color:C.green}}>粗利 ¥{fmt(m.profit)}</span>
+              </div>
+            </div>
+            <div style={{position:"relative",height:10,background:"#f0ece4",borderRadius:99,overflow:"hidden"}}>
+              <div style={{position:"absolute",height:"100%",width:`${(m.rev/maxRev)*100}%`,background:C.blue,borderRadius:99,opacity:0.4}}/>
+              <div style={{position:"absolute",height:"100%",width:`${(m.profit/maxRev)*100}%`,background:C.green,borderRadius:99}}/>
+            </div>
+          </div>
+        ))}
+      </Card>
+      <Card>
+        <div style={{fontSize:13,fontWeight:700,color:C.brown1,marginBottom:14}}>前年同月比</div>
+        {[
+          {label:"売上高",   val:"+8.2%",  type:"good"},
+          {label:"粗利額",   val:"+12.4%", type:"good"},
+          {label:"営業利益", val:"+5.1%",  type:"good"},
+          {label:"製造原価", val:"+3.2%",  type:"warn"},
+        ].map((r,i)=>(
+          <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${C.border}`,fontSize:13}}>
+            <span style={{color:C.brown2}}>{r.label}</span>
+            <Badge val={r.val} type={r.type}/>
+          </div>
+        ))}
+      </Card>
+    </div>
+  );
+}
+
+// ── MAIN APP ─────────────────────────────────────────────
+function App() {
+  const [screen,   setScreen]   = React.useState("dashboard");
+  const [menuOpen, setMenuOpen] = React.useState(false);
+
+  const handleNav = (id) => { setScreen(id); setMenuOpen(false); };
+
+  const SCREENS = {
+    dashboard: <Dashboard/>,
+    calc:      <CostCalc/>,
+    compare:   <Compare/>,
+    reverse:   <Reverse/>,
+    plan:      <Plan/>,
+    inventory: <Inventory/>,
+    trend:     <Trend/>,
+  };
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",minHeight:"100vh"}}>
+      {/* ヘッダー */}
+      <div style={{background:"#fff",borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,zIndex:100}}>
+        <div>
+          <div style={{fontSize:9,letterSpacing:"0.2em",color:C.brown3,textTransform:"uppercase"}}>Food Manufacturing</div>
+          <div style={{fontSize:18,fontWeight:900,color:C.accent}}>GenkaLab</div>
+        </div>
+        <button onClick={()=>setMenuOpen(!menuOpen)}
+          style={{border:`1px solid ${C.border}`,background:"#fff",borderRadius:8,padding:"7px 14px",cursor:"pointer",fontSize:13,color:C.brown2,fontWeight:600}}>
+          {menuOpen?"✕":"☰ メニュー"}
+        </button>
+      </div>
+
+      {/* メニュー */}
+      {menuOpen && (
+        <div style={{background:"#fff",borderBottom:`1px solid ${C.border}`,padding:"8px 12px",zIndex:99}}>
+          {NAV.map(n=>(
+            <div key={n.id} onClick={()=>handleNav(n.id)}
+              style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",borderRadius:10,marginBottom:3,cursor:"pointer",
+                background:screen===n.id?C.accentBg:"transparent",
+                color:screen===n.id?C.accent:C.brown2,
+                fontWeight:screen===n.id?700:400,fontSize:14}}>
+              <span>{n.icon}</span>{n.label}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* コンテンツ */}
+      <div style={{flex:1,padding:"16px",background:C.bg,paddingBottom:80}}>
+        {SCREENS[screen]}
+      </div>
+
+      {/* ボトムナビ */}
+      <div style={{background:"#fff",borderTop:`1px solid ${C.border}`,padding:"6px 0 4px",display:"flex",justifyContent:"space-around",position:"fixed",bottom:0,left:0,right:0,zIndex:100}}>
+        {NAV.slice(0,5).map(n=>(
+          <div key={n.id} onClick={()=>handleNav(n.id)}
+            style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,cursor:"pointer",padding:"4px 6px",flex:1,
+              color:screen===n.id?C.accent:C.brown3}}>
+            <span style={{fontSize:18}}>{n.icon}</span>
+            <span style={{fontSize:9,fontWeight:screen===n.id?700:400}}>{n.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
+root.render(<App/>);
 </script>
 </body>
 </html>
