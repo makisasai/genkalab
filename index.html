@@ -3,10 +3,177 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GenkaLab</title>
+<title>GenkaLab — 食品製造の原価管理</title>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Noto Sans JP', sans-serif; background: #faf7f2; }
+</style>
 </head>
 <body>
-<h1>GenkaLab</h1>
-<p>食品製造の原価管理ツール</p>
+<div id="root"></div>
+<script type="text/babel">
+
+const C = {
+  bg: "#faf7f2", surface: "#ffffff", border: "#ede8e0",
+  brown1: "#5c4a32", brown2: "#8a7560", brown3: "#b8a892",
+  accent: "#c8873a", accentBg: "#fdf3e8",
+  green: "#5a8a5a", greenBg: "#eef5ee",
+  red: "#b85a5a", redBg: "#faeeed",
+  yellow: "#c89a2a", yellowBg: "#fdf7e0",
+  blue: "#4a7a9a", blueBg: "#edf4f8",
+};
+
+const PRODUCTS = [
+  { name: "アイスクリーム 120ml", matCost: 185, laborCost: 48, price: 680, margin: 65.7, units: 800 },
+  { name: "牛乳プリン 150g", matCost: 92, laborCost: 31, price: 420, margin: 70.7, units: 2200 },
+  { name: "生クリームロール", matCost: 310, laborCost: 72, price: 980, margin: 61.0, units: 340 },
+  { name: "バター 200g", matCost: 420, laborCost: 55, price: 1200, margin: 60.4, units: 1800 },
+];
+
+const fmt = (n) => Math.round(n).toLocaleString("ja-JP");
+const pct = (n) => Number(n).toFixed(1) + "%";
+
+const NAV = [
+  { id: "dashboard", label: "ダッシュボード", icon: "🏠" },
+  { id: "calc", label: "原価計算", icon: "📊" },
+  { id: "compare", label: "商品比較", icon: "⚖️" },
+  { id: "reverse", label: "逆算シミュ", icon: "🔄" },
+  { id: "plan", label: "生産計画", icon: "📅" },
+  { id: "inventory", label: "棚卸し", icon: "📦" },
+  { id: "trend", label: "推移レポート", icon: "📈" },
+];
+
+function App() {
+  const [screen, setScreen] = React.useState("dashboard");
+
+  const totalRevenue = PRODUCTS.reduce((s,p) => s + p.price * p.units, 0);
+  const totalProfit = PRODUCTS.reduce((s,p) => s + (p.price - p.matCost - p.laborCost) * p.units, 0);
+  const opProfit = totalProfit - 1300000;
+  const sorted = [...PRODUCTS].sort((a,b) => (b.price-b.matCost-b.laborCost)*b.units - (a.price-a.matCost-a.laborCost)*a.units);
+
+  return (
+    <div style={{ display:"flex", minHeight:"100vh", fontFamily:"'Noto Sans JP',sans-serif" }}>
+      {/* サイドバー */}
+      <div style={{ width:200, background:"#fff", borderRight:`1px solid ${C.border}`, padding:"24px 0", display:"flex", flexDirection:"column", flexShrink:0 }}>
+        <div style={{ padding:"0 20px 20px", borderBottom:`1px solid ${C.border}`, marginBottom:8 }}>
+          <div style={{ fontSize:10, letterSpacing:"0.2em", color:C.brown3, textTransform:"uppercase", marginBottom:4 }}>Food Manufacturing</div>
+          <div style={{ fontSize:20, fontWeight:900, color:C.accent, letterSpacing:"0.05em" }}>GenkaLab</div>
+          <div style={{ fontSize:11, color:C.brown3, marginTop:2 }}>食品製造 原価管理</div>
+        </div>
+        <div style={{ padding:"8px 12px", flex:1 }}>
+          {NAV.map(n => {
+            const active = screen === n.id;
+            return (
+              <div key={n.id} onClick={() => setScreen(n.id)}
+                style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", borderRadius:10, marginBottom:2, cursor:"pointer",
+                  background: active ? C.accentBg : "transparent",
+                  color: active ? C.accent : C.brown2,
+                  fontWeight: active ? 700 : 400, fontSize:13,
+                  borderLeft: active ? `3px solid ${C.accent}` : "3px solid transparent" }}>
+                <span>{n.icon}</span>{n.label}
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ padding:"16px 20px", borderTop:`1px solid ${C.border}` }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ width:32, height:32, borderRadius:"50%", background:C.accentBg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>🧑</div>
+            <div>
+              <div style={{ fontSize:12, fontWeight:700, color:C.brown1 }}>山田乳業</div>
+              <div style={{ fontSize:11, color:C.brown3 }}>スタンダード</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* メイン */}
+      <div style={{ flex:1, overflowY:"auto", padding:"28px 32px", background:C.bg }}>
+        <div style={{ marginBottom:24 }}>
+          <div style={{ fontSize:11, color:C.brown3, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:4 }}>2025年5月</div>
+          <h1 style={{ fontSize:24, fontWeight:900, color:C.brown1, marginBottom:4 }}>ダッシュボード</h1>
+          <div style={{ fontSize:13, color:C.brown2 }}>月次サマリー — 目標 vs 実績</div>
+        </div>
+
+        {/* KPI */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:20 }}>
+          {[
+            { label:"月間売上高", val:`¥${fmt(totalRevenue)}`, sub:"前月比 +8.2% ▲", color:C.green, icon:"💰" },
+            { label:"月間粗利", val:`¥${fmt(totalProfit)}`, sub:`粗利率 ${pct(totalProfit/totalRevenue*100)}`, color:C.green, icon:"📈" },
+            { label:"営業利益", val:`¥${fmt(opProfit)}`, sub:`販管費 ¥1,300,000`, color:C.blue, icon:"✨" },
+            { label:"管理商品数", val:"4", sub:"今月2件更新", color:C.brown2, icon:"🍱" },
+          ].map((k,i) => (
+            <div key={i} style={{ background:C.surface, borderRadius:14, border:`1px solid ${C.border}`, padding:"18px 20px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+                <div style={{ fontSize:12, color:C.brown2, fontWeight:600 }}>{k.label}</div>
+                <span style={{ fontSize:20 }}>{k.icon}</span>
+              </div>
+              <div style={{ fontSize:22, fontWeight:900, color:C.brown1, marginBottom:4 }}>{k.val}</div>
+              <div style={{ fontSize:12, fontWeight:600, color:k.color }}>{k.sub}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* 商品テーブル */}
+        <div style={{ background:C.surface, borderRadius:14, border:`1px solid ${C.border}`, padding:"20px 24px", marginBottom:20 }}>
+          <div style={{ fontSize:14, fontWeight:700, color:C.brown1, marginBottom:16 }}>商品別 原価・粗利 詳細</div>
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+            <thead>
+              <tr>
+                {["商品名","原材料費","人件費","製造原価","販売価格","粗利率"].map((h,i)=>(
+                  <th key={i} style={{ textAlign:i===0?"left":"right", padding:"8px 10px", borderBottom:`2px solid ${C.border}`, color:C.brown3, fontWeight:600, fontSize:11 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((p,i) => {
+                const cost = p.matCost + p.laborCost;
+                const type = p.margin>=65?"good":p.margin>=55?"warn":"bad";
+                const mColor = type==="good"?C.green:type==="warn"?C.yellow:C.red;
+                const mBg = type==="good"?C.greenBg:type==="warn"?C.yellowBg:C.redBg;
+                return (
+                  <tr key={i} style={{ borderBottom:`1px solid ${C.border}` }}>
+                    <td style={{ padding:"12px 10px", fontWeight:700, color:C.brown1 }}>{p.name}</td>
+                    <td style={{ padding:"12px 10px", textAlign:"right", color:C.accent }}>{p.matCost}円</td>
+                    <td style={{ padding:"12px 10px", textAlign:"right", color:C.blue }}>{p.laborCost}円</td>
+                    <td style={{ padding:"12px 10px", textAlign:"right", fontWeight:700 }}>{cost}円</td>
+                    <td style={{ padding:"12px 10px", textAlign:"right", color:C.brown2 }}>{p.price}円</td>
+                    <td style={{ padding:"12px 10px", textAlign:"right" }}>
+                      <span style={{ padding:"3px 10px", borderRadius:99, background:mBg, color:mColor, fontWeight:700, fontSize:12 }}>{pct(p.margin)}</span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* アラート */}
+        <div style={{ background:C.surface, borderRadius:14, border:`1px solid ${C.border}`, padding:"20px 24px" }}>
+          <div style={{ fontSize:14, fontWeight:700, color:C.brown1, marginBottom:14 }}>お知らせ・アラート</div>
+          {[
+            { type:"warn", icon:"⚠️", text:"生クリームロール の歩留まりが88%に低下しています。先月比 −4%。" },
+            { type:"warn", icon:"⚠️", text:"バター 200g の原材料費が先月から+12円上昇しています。" },
+            { type:"good", icon:"✅", text:"牛乳プリン の粗利率が目標70%を達成しました！" },
+          ].map((a,i) => (
+            <div key={i} style={{ display:"flex", gap:10, padding:"12px 14px", borderRadius:10, marginBottom:8,
+              background: a.type==="warn" ? C.yellowBg : C.greenBg,
+              border: `1px solid ${a.type==="warn" ? C.yellow+"40" : C.green+"40"}` }}>
+              <span style={{ fontSize:16 }}>{a.icon}</span>
+              <span style={{ fontSize:13, color:C.brown1, lineHeight:1.6 }}>{a.text}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
 </body>
 </html>
